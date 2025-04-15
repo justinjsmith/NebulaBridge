@@ -41,6 +41,12 @@ export class InfraStack extends cdk.Stack {
     const frontendBucket = new s3.Bucket(this, 'NebulaBridgeFrontend', {
       websiteIndexDocument: 'index.html',
       publicReadAccess: true,
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        blockPublicPolicy: false,
+        ignorePublicAcls: false,
+        restrictPublicBuckets: false
+      }),
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
