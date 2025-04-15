@@ -11,7 +11,7 @@ function App() {
     const fetchInitialData = async () => {
       try {
         const apiUrl = process.env.REACT_APP_API_URL || '/api';
-        const response = await fetch(`${apiUrl}`);
+        const response = await fetch(`${apiUrl}/api`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -35,7 +35,7 @@ function App() {
     
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '/api';
-      const response = await fetch(`${apiUrl}`, {
+      const response = await fetch(`${apiUrl}/api`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
