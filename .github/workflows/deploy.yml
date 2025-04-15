@@ -26,6 +26,19 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
 
+      - name: Check for AWS credentials
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "::error::AWS credentials are missing. Please add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to your repository secrets."
+            echo "To add secrets:"
+            echo "1. Go to your repository settings"
+            echo "2. Navigate to Secrets and variables > Actions"
+            echo "3. Click 'New repository secret'"
+            echo "4. Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY with your AWS credentials"
+            exit 1
+          fi
+          echo "AWS credentials are properly configured."
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
