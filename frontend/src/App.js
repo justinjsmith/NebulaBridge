@@ -11,7 +11,7 @@ function App() {
     const fetchInitialData = async () => {
       try {
         const apiUrl = process.env.REACT_APP_API_URL || '/api';
-        const response = await fetch(`${apiUrl}/api`);
+        const response = await fetch(`${apiUrl}`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -21,7 +21,7 @@ function App() {
         setMessage(data.message);
       } catch (error) {
         console.error('Error fetching initial data:', error);
-        setError('Failed to fetch data from the backend. Please try again later.');
+        setError('Failed to send data to the backend. Please try again later.');
       }
     };
 
@@ -35,7 +35,7 @@ function App() {
     
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '/api';
-      const response = await fetch(`${apiUrl}/api`, {
+      const response = await fetch(`${apiUrl}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
