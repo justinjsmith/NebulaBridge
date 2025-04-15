@@ -60,7 +60,7 @@ describe('App Component', () => {
       expect(fetch).toHaveBeenCalledTimes(2);
     });
     
-    expect(fetch.mock.calls[1][0]).toBe(expect.any(String));
+    expect(fetch.mock.calls[1][0]).toEqual(expect.any(String));
     expect(fetch.mock.calls[1][1]).toEqual(
       expect.objectContaining({
         method: 'POST',
