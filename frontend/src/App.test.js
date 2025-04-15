@@ -5,6 +5,16 @@ import App from './App';
 
 global.fetch = jest.fn();
 
+global.XMLHttpRequest = jest.fn(() => ({
+  open: jest.fn(),
+  send: jest.fn(),
+  setRequestHeader: jest.fn(),
+  readyState: 4,
+  status: 200,
+  responseText: JSON.stringify({ message: 'CORS preflight success' }),
+  onreadystatechange: jest.fn()
+}));
+
 describe('App Component', () => {
   beforeEach(() => {
     fetch.mockClear();
@@ -141,5 +151,58 @@ describe('App Component', () => {
     });
     
     expect(fetch).toHaveBeenCalledWith('https://api.example.com/api');
+  });
+
+  test('handles CORS preflight requests correctly', async () => {
+    fetch.mockImplementation((url, options) => {
+      const headers = new Headers({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      });
+      
+      if (options && options.method === 'OPTIONS') {
+        return Promise.resolve({
+          ok: true,
+          headers: headers,
+          json: () => Promise.resolve({})
+        });
+      }
+      
+      return Promise.resolve({
+        ok: true,
+        headers: headers,
+        json: () => Promise.resolve({ message: 'CORS test successful' })
+      });
+    });
+
+    process.env.REACT_APP_API_URL = 'https://zeiuj2c69c.execute-api.us-east-1.amazonaws.com/prod/api';
+    
+    render(<App />);
+    
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+    
+    expect(fetch).toHaveBeenCalledWith('https://zeiuj2c69c.execute-api.us-east-1.amazonaws.com/prod/api');
+    
+    const input = screen.getByPlaceholderText('Enter text to send to Lambda');
+    fireEvent.change(input, { target: { value: 'CORS test message' } });
+    
+    const button = screen.getByText('Send');
+    fireEvent.click(button);
+    
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    
+    expect(fetch.mock.calls[1][0]).toBe('https://zeiuj2c69c.execute-api.us-east-1.amazonaws.com/prod/api');
+    expect(fetch.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'CORS test message' })
+      })
+    );
   });
 });
