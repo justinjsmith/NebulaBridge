@@ -8,6 +8,7 @@ global.fetch = jest.fn();
 describe('App Component', () => {
   beforeEach(() => {
     fetch.mockClear();
+    delete process.env.REACT_APP_API_URL;
   });
 
   test('renders the application title', () => {
@@ -88,5 +89,57 @@ describe('App Component', () => {
     await waitFor(() => {
       expect(screen.getByText('Failed to send data to the backend. Please try again later.')).toBeInTheDocument();
     });
+  });
+
+  test('constructs API URL correctly when URL ends with /prod', async () => {
+    process.env.REACT_APP_API_URL = 'https://api.example.com/prod';
+    
+    fetch.mockImplementation((url) => {
+      console.log('Fetch URL:', url);
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ message: 'Test response' })
+      });
+    });
+
+    render(<App />);
+    
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+    
+    expect(fetch).toHaveBeenCalledWith('https://api.example.com/prod');
+    
+    const input = screen.getByPlaceholderText('Enter text to send to Lambda');
+    fireEvent.change(input, { target: { value: 'Test message' } });
+    
+    const button = screen.getByText('Send');
+    fireEvent.click(button);
+    
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    
+    expect(fetch.mock.calls[1][0]).toBe('https://api.example.com/prod');
+  });
+
+  test('constructs API URL correctly when URL already includes /api', async () => {
+    process.env.REACT_APP_API_URL = 'https://api.example.com/api';
+    
+    fetch.mockImplementation((url) => {
+      console.log('Fetch URL:', url);
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ message: 'Test response' })
+      });
+    });
+
+    render(<App />);
+    
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+    
+    expect(fetch).toHaveBeenCalledWith('https://api.example.com/api');
   });
 });
