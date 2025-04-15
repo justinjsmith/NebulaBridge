@@ -11,7 +11,11 @@ function App() {
     const fetchInitialData = async () => {
       try {
         const apiUrl = process.env.REACT_APP_API_URL || '/api';
-        const response = await fetch(`${apiUrl}/api`);
+        const url = apiUrl.includes('/api') || apiUrl.endsWith('/prod') 
+          ? apiUrl 
+          : `${apiUrl}/api`;
+        
+        const response = await fetch(url);
         
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -35,7 +39,11 @@ function App() {
     
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '/api';
-      const response = await fetch(`${apiUrl}/api`, {
+      const url = apiUrl.includes('/api') || apiUrl.endsWith('/prod') 
+        ? apiUrl 
+        : `${apiUrl}/api`;
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
