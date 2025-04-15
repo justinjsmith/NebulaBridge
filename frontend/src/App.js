@@ -21,7 +21,7 @@ function App() {
         setMessage(data.message);
       } catch (error) {
         console.error('Error fetching initial data:', error);
-        setError('Failed to fetch data from the backend. Please try again later.');
+        setError('Failed to send data to the backend. Please try again later.');
       }
     };
 
