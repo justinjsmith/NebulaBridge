@@ -36,10 +36,19 @@ describe('App Component', () => {
   test('sends text input to API and displays response', async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
+      json: async () => ({ message: 'Initial message' }),
+    });
+    
+    fetch.mockResolvedValueOnce({
+      ok: true,
       json: async () => ({ message: 'NebulaBridge received your message: Test message' }),
     });
 
     render(<App />);
+    
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
     
     const input = screen.getByPlaceholderText('Enter text to send to Lambda');
     fireEvent.change(input, { target: { value: 'Test message' } });
@@ -48,11 +57,11 @@ describe('App Component', () => {
     fireEvent.click(button);
     
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch).toHaveBeenCalledTimes(2);
     });
     
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
+    expect(fetch.mock.calls[1][0]).toBe(expect.any(String));
+    expect(fetch.mock.calls[1][1]).toEqual(
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
