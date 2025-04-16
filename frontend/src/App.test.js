@@ -4,13 +4,25 @@ import '@testing-library/jest-dom';
 import App from './App';
 import * as auth from './auth';
 
-jest.mock('./auth', () => ({
-  configureAmplify: jest.fn(),
-  getCurrentUser: jest.fn().mockResolvedValue({ success: true, user: { username: 'testuser', attributes: { email: 'test@example.com' } } }),
-  getIdToken: jest.fn().mockResolvedValue('mock-jwt-token'),
-  signIn: jest.fn(),
-  signOut: jest.fn()
-}));
+process.env.REACT_APP_USER_POOL_ID = 'test-user-pool-id';
+process.env.REACT_APP_USER_POOL_CLIENT_ID = 'test-client-id';
+
+jest.mock('./auth', () => {
+  const originalModule = jest.requireActual('./auth');
+  return {
+    configureAmplify: jest.fn(),
+    getCurrentUser: jest.fn().mockImplementation(() => Promise.resolve({ 
+      success: true, 
+      user: { 
+        username: 'testuser', 
+        attributes: { email: 'test@example.com' } 
+      } 
+    })),
+    getIdToken: jest.fn().mockImplementation(() => Promise.resolve('mock-jwt-token')),
+    signIn: jest.fn(),
+    signOut: jest.fn()
+  };
+});
 
 global.fetch = jest.fn();
 
