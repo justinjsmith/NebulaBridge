@@ -46,6 +46,36 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Install CDK dependencies
+        run: |
+          cd infra
+          npm ci
+
+      - name: Deploy CDK stack
+        run: |
+          cd infra
+          npm run cdk -- deploy --require-approval never --outputs-file /tmp/cdk-outputs.json
+
+      - name: Update frontend environment variables
+        run: |
+          # Get AWS account ID
+          export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          
+          # Extract Cognito configuration from CDK outputs
+          USER_POOL_ID=$(node -e "const fs=require('fs');const outputs=JSON.parse(fs.readFileSync('/tmp/cdk-outputs.json'));console.log(outputs.InfraStack.UserPoolId || '')")
+          USER_POOL_CLIENT_ID=$(node -e "const fs=require('fs');const outputs=JSON.parse(fs.readFileSync('/tmp/cdk-outputs.json'));console.log(outputs.InfraStack.UserPoolClientId || '')")
+          API_URL=$(node -e "const fs=require('fs');const outputs=JSON.parse(fs.readFileSync('/tmp/cdk-outputs.json'));console.log(outputs.InfraStack.ApiUrl || '')")
+          
+          # Update .env file
+          echo "Updating frontend .env file with Cognito configuration"
+          echo "REACT_APP_API_URL=$API_URL" > frontend/.env
+          echo "REACT_APP_AWS_REGION=us-east-1" >> frontend/.env
+          echo "REACT_APP_USER_POOL_ID=$USER_POOL_ID" >> frontend/.env
+          echo "REACT_APP_USER_POOL_CLIENT_ID=$USER_POOL_CLIENT_ID" >> frontend/.env
+          echo "REACT_APP_COGNITO_DOMAIN=nebulabridge-$AWS_ACCOUNT_ID" >> frontend/.env
+          
+          cat frontend/.env
+
       - name: Install frontend dependencies
         run: |
           cd frontend
@@ -66,23 +96,33 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
-      - name: Package Lambda function
-        run: |
-          cd backend
-          zip -r lambda_function.zip lambda_function.py
-
       - name: Deploy frontend to S3
         run: |
-          aws s3 sync frontend/build/ s3://nebulabridge-frontend-1744743617 --delete
+          # Get the S3 bucket name from CDK outputs
+          FRONTEND_BUCKET=$(node -e "const fs=require('fs');const outputs=JSON.parse(fs.readFileSync('/tmp/cdk-outputs.json'));console.log(outputs.InfraStack.FrontendUrl ? outputs.InfraStack.FrontendUrl.split('//')[1].split('.')[0] : '')")
+          
+          if [ -z "$FRONTEND_BUCKET" ]; then
+            echo "Using hardcoded bucket name as fallback"
+            aws s3 sync frontend/build/ s3://nebulabridge-frontend-1744743617 --delete
+          else
+            echo "Using bucket name from CDK outputs: $FRONTEND_BUCKET"
+            aws s3 sync frontend/build/ s3://$FRONTEND_BUCKET --delete
+          fi
 
       - name: Update Lambda function
         run: |
+          # Get the Lambda function name from CDK outputs
+          LAMBDA_FUNCTION=$(node -e "const fs=require('fs');const outputs=JSON.parse(fs.readFileSync('/tmp/cdk-outputs.json'));console.log(outputs.InfraStack.LambdaFunctionName || 'NebulaBridgeBackend')")
+          
           aws lambda update-function-code \
-            --function-name NebulaBridgeBackend \
+            --function-name $LAMBDA_FUNCTION \
             --zip-file fileb://backend/lambda_function.zip
 
       - name: Create API Gateway deployment
         run: |
+          # Get the API Gateway ID from CDK outputs
+          API_ID=$(node -e "const fs=require('fs');const outputs=JSON.parse(fs.readFileSync('/tmp/cdk-outputs.json'));console.log(outputs.InfraStack.ApiUrl ? outputs.InfraStack.ApiUrl.split('.')[0].split('//')[1] : 'zeiuj2c69c')")
+          
           aws apigateway create-deployment \
-            --rest-api-id zeiuj2c69c \
+            --rest-api-id $API_ID \
             --stage-name prod
