@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { configureAmplify, getCurrentUser, getIdToken, signIn, signOut } from './auth';
+import { configureAmplify, getCurrentUser, getIdToken, signIn, signOut, signUp } from './auth';
 
 function App() {
   const [message, setMessage] = useState('');
@@ -10,6 +10,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
@@ -153,6 +155,41 @@ function App() {
       setLoading(false);
     }
   };
+  
+  const handleRegistration = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const { success, error, nextStep } = await signUp(email, password, email);
+      if (success) {
+        setIsRegistering(false);
+        setError('Registration successful! Please sign in with your new account.');
+      } else if (nextStep && nextStep.signUpStep === 'CONFIRM_SIGN_UP') {
+        setIsRegistering(false);
+        setError('Registration successful! Please check your email for a verification code and confirm your account.');
+      } else {
+        setError(error?.message || 'Failed to register. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error registering:', error);
+      setError('Failed to register. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const toggleAuthMode = () => {
+    setIsRegistering(!isRegistering);
+    setError(null);
+  };
 
   return (
     <div className="App">
@@ -198,13 +235,13 @@ function App() {
           </>
         ) : (
           <div className="auth-container">
-            <h2>Sign In</h2>
+            <h2>{isRegistering ? 'Create Account' : 'Sign In'}</h2>
             {error && (
               <div className="error-container">
                 <p>{error}</p>
               </div>
             )}
-            <form onSubmit={handleSignIn} className="auth-form">
+            <form onSubmit={isRegistering ? handleRegistration : handleSignIn} className="auth-form">
               <div className="form-group">
                 <label htmlFor="email">Email:</label>
                 <input
@@ -227,10 +264,32 @@ function App() {
                   className="auth-input"
                 />
               </div>
-              <button type="submit" className="auth-button" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign In'}
+              {isRegistering && (
+                <div className="form-group">
+                  <label htmlFor="confirmPassword">Confirm Password:</label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="auth-input"
+                  />
+                </div>
+              )}
+              <button type="submit" className="auth-button primary-button" disabled={loading}>
+                {loading 
+                  ? (isRegistering ? 'Creating Account...' : 'Signing in...') 
+                  : (isRegistering ? 'Create Account' : 'Sign In')}
               </button>
             </form>
+            <div className="auth-toggle">
+              <button onClick={toggleAuthMode} className="toggle-button">
+                {isRegistering 
+                  ? 'Already have an account? Sign In' 
+                  : 'Need an account? Register'}
+              </button>
+            </div>
           </div>
         )}
       </header>
