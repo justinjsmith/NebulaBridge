@@ -1,6 +1,6 @@
 # NebulaBridge
 
-A private repository for a React app with a Python Lambda backend that allows users to send text messages to a serverless backend and receive responses.
+A React app with a Python Lambda backend that allows users to send text messages to a serverless backend and receive responses.
 
 ## What This Application Does
 
