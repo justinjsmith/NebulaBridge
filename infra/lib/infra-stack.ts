@@ -8,12 +8,18 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class InfraStack extends cdk.Stack {
   public readonly apiUrl: cdk.CfnOutput;
   public readonly frontendUrl: cdk.CfnOutput;
   public readonly userPoolId: cdk.CfnOutput;
   public readonly userPoolClientId: cdk.CfnOutput;
+  public readonly cognitoDomain: cdk.CfnOutput;
+  public readonly frontendBucketName: cdk.CfnOutput;
+  public readonly cloudFrontDistributionId: cdk.CfnOutput;
+  public readonly lambdaFunctionName: cdk.CfnOutput;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -68,7 +74,6 @@ export class InfraStack extends cdk.Stack {
     const lambdaIntegration = new apigateway.LambdaIntegration(backendLambda);
     const apiResource = api.root.addResource('api');
     
-    
     apiResource.addMethod('GET', lambdaIntegration, {
       authorizer: authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
@@ -100,13 +105,6 @@ export class InfraStack extends cdk.Stack {
       defaultRootObject: 'index.html',
     });
 
-    new s3deploy.BucketDeployment(this, 'DeployFrontend', {
-      sources: [s3deploy.Source.asset('../frontend/build')],
-      destinationBucket: frontendBucket,
-      distribution,
-      distributionPaths: ['/*'],
-    });
-    
     const userPoolClient = new cognito.UserPoolClient(this, 'NebulaBridgeUserPoolClient', {
       userPool,
       authFlows: {
@@ -131,14 +129,52 @@ export class InfraStack extends cdk.Stack {
       ],
     });
     
+    const cognitoDomainPrefix = `nebulabridge-${this.account}`;
     const userPoolDomain = new cognito.UserPoolDomain(this, 'NebulaBridgeDomain', {
       userPool,
       cognitoDomain: {
-        domainPrefix: `nebulabridge-${this.account}`,
+        domainPrefix: cognitoDomainPrefix,
       },
     });
     
     backendLambda.addEnvironment('COGNITO_APP_CLIENT_ID', userPoolClient.userPoolClientId);
+
+    const envFilePath = path.join(__dirname, '../../frontend/.env');
+    try {
+      let envContent = '';
+      if (fs.existsSync(envFilePath)) {
+        envContent = fs.readFileSync(envFilePath, 'utf8');
+      }
+      
+      const envVars = {
+        'REACT_APP_API_URL': api.url,
+        'REACT_APP_AWS_REGION': this.region,
+        'REACT_APP_USER_POOL_ID': userPool.userPoolId,
+        'REACT_APP_USER_POOL_CLIENT_ID': userPoolClient.userPoolClientId,
+        'REACT_APP_COGNITO_DOMAIN': cognitoDomainPrefix,
+      };
+      
+      Object.entries(envVars).forEach(([key, value]) => {
+        const regex = new RegExp(`^${key}=.*$`, 'm');
+        if (envContent.match(regex)) {
+          envContent = envContent.replace(regex, `${key}=${value}`);
+        } else {
+          envContent += `\n${key}=${value}`;
+        }
+      });
+      
+      fs.writeFileSync(envFilePath, envContent);
+      console.log('Frontend .env file updated with Cognito configuration');
+    } catch (error) {
+      console.error('Error updating frontend .env file:', error);
+    }
+
+    new s3deploy.BucketDeployment(this, 'DeployFrontend', {
+      sources: [s3deploy.Source.asset('../frontend/build')],
+      destinationBucket: frontendBucket,
+      distribution,
+      distributionPaths: ['/*'],
+    });
 
     this.apiUrl = new cdk.CfnOutput(this, 'ApiUrl', {
       value: api.url,
@@ -158,6 +194,26 @@ export class InfraStack extends cdk.Stack {
     this.userPoolClientId = new cdk.CfnOutput(this, 'UserPoolClientId', {
       value: userPoolClient.userPoolClientId,
       description: 'ID of the Cognito User Pool Client',
+    });
+    
+    this.cognitoDomain = new cdk.CfnOutput(this, 'CognitoDomain', {
+      value: cognitoDomainPrefix,
+      description: 'Cognito domain prefix',
+    });
+    
+    this.frontendBucketName = new cdk.CfnOutput(this, 'FrontendBucketName', {
+      value: frontendBucket.bucketName,
+      description: 'Name of the S3 bucket for frontend',
+    });
+    
+    this.cloudFrontDistributionId = new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
+      value: distribution.distributionId,
+      description: 'ID of the CloudFront distribution',
+    });
+    
+    this.lambdaFunctionName = new cdk.CfnOutput(this, 'LambdaFunctionName', {
+      value: backendLambda.functionName,
+      description: 'Name of the Lambda function',
     });
   }
 }
