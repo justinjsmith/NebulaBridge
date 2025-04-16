@@ -164,14 +164,11 @@ describe('App Component', () => {
     }));
     
     jest.spyOn(React, 'useState')
-      .mockImplementationOnce(() => [false, jest.fn()]) // message
-      .mockImplementationOnce(() => ['', jest.fn()]) // inputText
-      .mockImplementationOnce(() => [false, jest.fn()]) // loading
-      .mockImplementationOnce(() => [null, jest.fn()]) // error
-      .mockImplementationOnce(() => [{ username: 'testuser', attributes: { email: 'test@example.com' } }, jest.fn()]) // user
+      .mockImplementationOnce(() => [false, jest.fn()]) // isRegistering
       .mockImplementationOnce(() => ['', jest.fn()]) // email
       .mockImplementationOnce(() => ['', jest.fn()]) // password
-      .mockImplementationOnce(() => [true, jest.fn()]); // isAuthenticated - set to true
+      .mockImplementationOnce(() => ['', jest.fn()]) // confirmPassword
+      .mockImplementationOnce(() => [null, jest.fn()]); // error
   });
 
   test('renders the application title', () => {
