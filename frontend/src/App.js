@@ -69,7 +69,7 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>NebulaBridge</h1>
-        <p>React Frontend + Python Lambda Backend</p>
+        <p>React Frontend + Python Lambda Backend Demo</p>
         
         <div className="input-container">
           <form onSubmit={handleSubmit}>
