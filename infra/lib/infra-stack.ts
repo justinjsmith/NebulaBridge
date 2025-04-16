@@ -65,7 +65,6 @@ export class InfraStack extends cdk.Stack {
     const lambdaIntegration = new apigateway.LambdaIntegration(backendLambda);
     const apiResource = api.root.addResource('api');
     
-    apiResource.addMethod('OPTIONS', lambdaIntegration);
     
     apiResource.addMethod('GET', lambdaIntegration, {
       authorizer: authorizer,
