@@ -44,6 +44,9 @@ export class InfraStack extends cdk.Stack {
       handler: 'lambda_function.lambda_handler',
       memorySize: 256,
       timeout: cdk.Duration.seconds(30),
+      environment: {
+        COGNITO_USER_POOL_ID: userPool.userPoolId,
+      }
     });
 
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'NebulaBridgeAuthorizer', {
@@ -65,7 +68,6 @@ export class InfraStack extends cdk.Stack {
     const lambdaIntegration = new apigateway.LambdaIntegration(backendLambda);
     const apiResource = api.root.addResource('api');
     
-    apiResource.addMethod('OPTIONS', lambdaIntegration);
     
     apiResource.addMethod('GET', lambdaIntegration, {
       authorizer: authorizer,
@@ -135,6 +137,8 @@ export class InfraStack extends cdk.Stack {
         domainPrefix: `nebulabridge-${this.account}`,
       },
     });
+    
+    backendLambda.addEnvironment('COGNITO_APP_CLIENT_ID', userPoolClient.userPoolClientId);
 
     this.apiUrl = new cdk.CfnOutput(this, 'ApiUrl', {
       value: api.url,

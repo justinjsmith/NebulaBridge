@@ -51,7 +51,14 @@ jest.mock('./auth', () => ({
   }),
   getIdToken: jest.fn().mockResolvedValue('mock-jwt-token'),
   signIn: jest.fn(),
-  signOut: jest.fn()
+  signOut: jest.fn(),
+  signUp: jest.fn().mockResolvedValue({
+    success: true,
+    user: {
+      username: 'test@example.com',
+      userId: 'test-user-id'
+    }
+  })
 }));
 
 global.fetch = jest.fn();
