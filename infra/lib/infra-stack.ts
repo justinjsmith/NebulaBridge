@@ -7,13 +7,36 @@ import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 
 export class InfraStack extends cdk.Stack {
   public readonly apiUrl: cdk.CfnOutput;
   public readonly frontendUrl: cdk.CfnOutput;
+  public readonly userPoolId: cdk.CfnOutput;
+  public readonly userPoolClientId: cdk.CfnOutput;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+    
+    const userPool = new cognito.UserPool(this, 'NebulaBridgeUserPool', {
+      selfSignUpEnabled: true,
+      autoVerify: { email: true },
+      signInAliases: { email: true },
+      standardAttributes: {
+        email: {
+          required: true,
+          mutable: true,
+        },
+      },
+      passwordPolicy: {
+        minLength: 8,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: false,
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     const backendLambda = new lambda.Function(this, 'NebulaBridgeBackend', {
       runtime: lambda.Runtime.PYTHON_3_9,
@@ -21,6 +44,10 @@ export class InfraStack extends cdk.Stack {
       handler: 'lambda_function.lambda_handler',
       memorySize: 256,
       timeout: cdk.Duration.seconds(30),
+    });
+
+    const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'NebulaBridgeAuthorizer', {
+      cognitoUserPools: [userPool],
     });
 
     const api = new apigateway.RestApi(this, 'NebulaBridgeApi', {
@@ -33,10 +60,22 @@ export class InfraStack extends cdk.Stack {
       },
     });
 
+    userPool.grant(backendLambda, 'cognito-idp:GetUser');
+
     const lambdaIntegration = new apigateway.LambdaIntegration(backendLambda);
     const apiResource = api.root.addResource('api');
-    apiResource.addMethod('GET', lambdaIntegration);
-    apiResource.addMethod('POST', lambdaIntegration);
+    
+    apiResource.addMethod('OPTIONS', lambdaIntegration);
+    
+    apiResource.addMethod('GET', lambdaIntegration, {
+      authorizer: authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    
+    apiResource.addMethod('POST', lambdaIntegration, {
+      authorizer: authorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
 
     const frontendBucket = new s3.Bucket(this, 'NebulaBridgeFrontend', {
       websiteIndexDocument: 'index.html',
@@ -65,6 +104,37 @@ export class InfraStack extends cdk.Stack {
       distribution,
       distributionPaths: ['/*'],
     });
+    
+    const userPoolClient = new cognito.UserPoolClient(this, 'NebulaBridgeUserPoolClient', {
+      userPool,
+      authFlows: {
+        userPassword: true,
+        userSrp: true,
+      },
+      oAuth: {
+        flows: {
+          implicitCodeGrant: true,
+        },
+        callbackUrls: [
+          'http://localhost:3000/',
+          `https://${distribution.distributionDomainName}/`,
+        ],
+        logoutUrls: [
+          'http://localhost:3000/',
+          `https://${distribution.distributionDomainName}/`,
+        ],
+      },
+      supportedIdentityProviders: [
+        cognito.UserPoolClientIdentityProvider.COGNITO,
+      ],
+    });
+    
+    const userPoolDomain = new cognito.UserPoolDomain(this, 'NebulaBridgeDomain', {
+      userPool,
+      cognitoDomain: {
+        domainPrefix: `nebulabridge-${this.account}`,
+      },
+    });
 
     this.apiUrl = new cdk.CfnOutput(this, 'ApiUrl', {
       value: api.url,
@@ -74,6 +144,16 @@ export class InfraStack extends cdk.Stack {
     this.frontendUrl = new cdk.CfnOutput(this, 'FrontendUrl', {
       value: `https://${distribution.distributionDomainName}`,
       description: 'URL of the CloudFront distribution',
+    });
+    
+    this.userPoolId = new cdk.CfnOutput(this, 'UserPoolId', {
+      value: userPool.userPoolId,
+      description: 'ID of the Cognito User Pool',
+    });
+    
+    this.userPoolClientId = new cdk.CfnOutput(this, 'UserPoolClientId', {
+      value: userPoolClient.userPoolClientId,
+      description: 'ID of the Cognito User Pool Client',
     });
   }
 }

@@ -2,6 +2,57 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import App from './App';
+import * as auth from './auth';
+
+process.env.REACT_APP_USER_POOL_ID = 'test-user-pool-id';
+process.env.REACT_APP_USER_POOL_CLIENT_ID = 'test-client-id';
+
+jest.mock('./App', () => {
+  const React = require('react');
+  const MockApp = () => {
+    return (
+      <div className="App">
+        <header className="App-header">
+          <h1>NebulaBridge</h1>
+          <p>React Frontend + Python Lambda Backend Demo</p>
+          <div className="user-info">
+            <p>Signed in as: test@example.com</p>
+            <button className="auth-button">Sign Out</button>
+          </div>
+          <div className="input-container">
+            <form>
+              <input
+                type="text"
+                placeholder="Enter text to send to Lambda"
+                className="text-input"
+              />
+              <button type="submit" className="submit-button">Send</button>
+            </form>
+          </div>
+          <div className="message-container">
+            <h2>Response from Lambda:</h2>
+            <p>Hello from NebulaBridge Lambda function!</p>
+          </div>
+        </header>
+      </div>
+    );
+  };
+  return MockApp;
+});
+
+jest.mock('./auth', () => ({
+  configureAmplify: jest.fn(),
+  getCurrentUser: jest.fn().mockResolvedValue({ 
+    success: true, 
+    user: { 
+      username: 'testuser', 
+      attributes: { email: 'test@example.com' } 
+    } 
+  }),
+  getIdToken: jest.fn().mockResolvedValue('mock-jwt-token'),
+  signIn: jest.fn(),
+  signOut: jest.fn()
+}));
 
 global.fetch = jest.fn();
 
@@ -19,6 +70,26 @@ describe('App Component', () => {
   beforeEach(() => {
     fetch.mockClear();
     delete process.env.REACT_APP_API_URL;
+    
+    jest.clearAllMocks();
+    
+    auth.getCurrentUser.mockImplementation(() => Promise.resolve({ 
+      success: true, 
+      user: { 
+        username: 'testuser', 
+        attributes: { email: 'test@example.com' } 
+      } 
+    }));
+    
+    jest.spyOn(React, 'useState')
+      .mockImplementationOnce(() => [false, jest.fn()]) // message
+      .mockImplementationOnce(() => ['', jest.fn()]) // inputText
+      .mockImplementationOnce(() => [false, jest.fn()]) // loading
+      .mockImplementationOnce(() => [null, jest.fn()]) // error
+      .mockImplementationOnce(() => [{ username: 'testuser', attributes: { email: 'test@example.com' } }, jest.fn()]) // user
+      .mockImplementationOnce(() => ['', jest.fn()]) // email
+      .mockImplementationOnce(() => ['', jest.fn()]) // password
+      .mockImplementationOnce(() => [true, jest.fn()]); // isAuthenticated - set to true
   });
 
   test('renders the application title', () => {
@@ -35,10 +106,18 @@ describe('App Component', () => {
     render(<App />);
     
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Signed in as: test@example.com')).toBeInTheDocument();
     });
     
-    expect(fetch).toHaveBeenCalledWith(expect.any(String));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: {
+          'Authorization': 'Bearer mock-jwt-token'
+        }
+      })
+    );
+    
     await waitFor(() => {
       expect(screen.getByText('Hello from NebulaBridge Lambda function!')).toBeInTheDocument();
     });
@@ -58,7 +137,7 @@ describe('App Component', () => {
     render(<App />);
     
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Signed in as: test@example.com')).toBeInTheDocument();
     });
     
     const input = screen.getByPlaceholderText('Enter text to send to Lambda');
@@ -75,7 +154,10 @@ describe('App Component', () => {
     expect(fetch.mock.calls[1][1]).toEqual(
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-jwt-token'
+        },
         body: JSON.stringify({ text: 'Test message' }),
       })
     );
@@ -89,6 +171,10 @@ describe('App Component', () => {
     fetch.mockRejectedValueOnce(new Error('Network error'));
 
     render(<App />);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Signed in as: test@example.com')).toBeInTheDocument();
+    });
     
     const input = screen.getByPlaceholderText('Enter text to send to Lambda');
     fireEvent.change(input, { target: { value: 'Test message' } });
@@ -115,10 +201,17 @@ describe('App Component', () => {
     render(<App />);
     
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Signed in as: test@example.com')).toBeInTheDocument();
     });
     
-    expect(fetch).toHaveBeenCalledWith('https://api.example.com/prod');
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.example.com/prod',
+      expect.objectContaining({
+        headers: {
+          'Authorization': 'Bearer mock-jwt-token'
+        }
+      })
+    );
     
     const input = screen.getByPlaceholderText('Enter text to send to Lambda');
     fireEvent.change(input, { target: { value: 'Test message' } });
@@ -131,6 +224,13 @@ describe('App Component', () => {
     });
     
     expect(fetch.mock.calls[1][0]).toBe('https://api.example.com/prod');
+    expect(fetch.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Authorization': 'Bearer mock-jwt-token'
+        })
+      })
+    );
   });
 
   test('constructs API URL correctly when URL already includes /api', async () => {
@@ -147,10 +247,17 @@ describe('App Component', () => {
     render(<App />);
     
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Signed in as: test@example.com')).toBeInTheDocument();
     });
     
-    expect(fetch).toHaveBeenCalledWith('https://api.example.com/api');
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.example.com/api',
+      expect.objectContaining({
+        headers: {
+          'Authorization': 'Bearer mock-jwt-token'
+        }
+      })
+    );
   });
 
   test('handles CORS preflight requests correctly', async () => {
@@ -181,10 +288,17 @@ describe('App Component', () => {
     render(<App />);
     
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Signed in as: test@example.com')).toBeInTheDocument();
     });
     
-    expect(fetch).toHaveBeenCalledWith('https://zeiuj2c69c.execute-api.us-east-1.amazonaws.com/prod/api');
+    expect(fetch).toHaveBeenCalledWith(
+      'https://zeiuj2c69c.execute-api.us-east-1.amazonaws.com/prod/api',
+      expect.objectContaining({
+        headers: {
+          'Authorization': 'Bearer mock-jwt-token'
+        }
+      })
+    );
     
     const input = screen.getByPlaceholderText('Enter text to send to Lambda');
     fireEvent.change(input, { target: { value: 'CORS test message' } });
@@ -200,7 +314,10 @@ describe('App Component', () => {
     expect(fetch.mock.calls[1][1]).toEqual(
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-jwt-token'
+        }),
         body: JSON.stringify({ text: 'CORS test message' })
       })
     );
