@@ -1,4 +1,5 @@
-import { Amplify, Auth } from 'aws-amplify';
+import { Amplify } from 'aws-amplify';
+import { signIn as amplifySignIn, signUp as amplifySignUp, signOut as amplifySignOut, getCurrentUser as amplifyGetCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 
 export const configureAmplify = (config) => {
   Amplify.configure({
@@ -19,8 +20,12 @@ export const configureAmplify = (config) => {
 
 export const signIn = async (username, password) => {
   try {
-    const user = await Auth.signIn(username, password);
-    return { success: true, user };
+    const { isSignedIn, nextStep } = await amplifySignIn({ username, password });
+    if (isSignedIn) {
+      const user = await amplifyGetCurrentUser();
+      return { success: true, user };
+    }
+    return { success: false, nextStep };
   } catch (error) {
     console.error('Error signing in:', error);
     return { success: false, error };
@@ -29,12 +34,14 @@ export const signIn = async (username, password) => {
 
 export const signUp = async (username, password, email) => {
   try {
-    const { user } = await Auth.signUp({
+    const { isSignUpComplete, userId, nextStep } = await amplifySignUp({
       username,
       password,
-      attributes: { email }
+      options: {
+        userAttributes: { email }
+      }
     });
-    return { success: true, user };
+    return { success: isSignUpComplete, user: { username, userId }, nextStep };
   } catch (error) {
     console.error('Error signing up:', error);
     return { success: false, error };
@@ -43,7 +50,7 @@ export const signUp = async (username, password, email) => {
 
 export const signOut = async () => {
   try {
-    await Auth.signOut();
+    await amplifySignOut();
     return { success: true };
   } catch (error) {
     console.error('Error signing out:', error);
@@ -53,7 +60,7 @@ export const signOut = async () => {
 
 export const getCurrentUser = async () => {
   try {
-    const user = await Auth.currentAuthenticatedUser();
+    const user = await amplifyGetCurrentUser();
     return { success: true, user };
   } catch (error) {
     console.error('Error getting current user:', error);
@@ -63,8 +70,8 @@ export const getCurrentUser = async () => {
 
 export const getIdToken = async () => {
   try {
-    const session = await Auth.currentSession();
-    return session.getIdToken().getJwtToken();
+    const { tokens } = await fetchAuthSession();
+    return tokens.idToken.toString();
   } catch (error) {
     console.error('Error getting token:', error);
     return null;
