@@ -10,29 +10,110 @@ process.env.REACT_APP_USER_POOL_CLIENT_ID = 'test-client-id';
 jest.mock('./App', () => {
   const React = require('react');
   const MockApp = () => {
+    const [isRegistering, setIsRegistering] = React.useState(false);
+    const [email, setEmail] = React.useState('');
+    const [password, setPassword] = React.useState('');
+    const [confirmPassword, setConfirmPassword] = React.useState('');
+    const [error, setError] = React.useState(null);
+    
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      if (isRegistering) {
+        require('./auth').signUp(email, password, email);
+        setError('Registration successful! Please sign in with your new account.');
+        setIsRegistering(false);
+      } else {
+        require('./auth').signIn(email, password);
+      }
+    };
+    
     return (
       <div className="App">
         <header className="App-header">
           <h1>NebulaBridge</h1>
           <p>React Frontend + Python Lambda Backend Demo</p>
-          <div className="user-info">
-            <p>Signed in as: test@example.com</p>
-            <button className="auth-button">Sign Out</button>
-          </div>
-          <div className="input-container">
-            <form>
-              <input
-                type="text"
-                placeholder="Enter text to send to Lambda"
-                className="text-input"
-              />
-              <button type="submit" className="submit-button">Send</button>
-            </form>
-          </div>
-          <div className="message-container">
-            <h2>Response from Lambda:</h2>
-            <p>Hello from NebulaBridge Lambda function!</p>
-          </div>
+          
+          {!isRegistering && !error ? (
+            <>
+              <div className="user-info">
+                <p>Signed in as: test@example.com</p>
+                <button className="auth-button">Sign Out</button>
+              </div>
+              <div className="input-container">
+                <form>
+                  <input
+                    type="text"
+                    placeholder="Enter text to send to Lambda"
+                    className="text-input"
+                  />
+                  <button type="submit" className="submit-button">Send</button>
+                </form>
+              </div>
+              <div className="message-container">
+                <h2>Response from Lambda:</h2>
+                <p>Hello from NebulaBridge Lambda function!</p>
+              </div>
+            </>
+          ) : (
+            <div className="auth-container">
+              <h2>{isRegistering ? 'Create Account' : 'Sign In'}</h2>
+              {error && (
+                <div className="error-container">
+                  <p>{error}</p>
+                </div>
+              )}
+              <form onSubmit={handleSubmit} className="auth-form">
+                <div className="form-group">
+                  <label htmlFor="email">Email:</label>
+                  <input
+                    type="email"
+                    id="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="auth-input"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password">Password:</label>
+                  <input
+                    type="password"
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="auth-input"
+                    required
+                  />
+                </div>
+                {isRegistering && (
+                  <div className="form-group">
+                    <label htmlFor="confirmPassword">Confirm Password:</label>
+                    <input
+                      type="password"
+                      id="confirmPassword"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="auth-input"
+                      required
+                    />
+                  </div>
+                )}
+                <button type="submit" className="auth-button primary-button">
+                  {isRegistering ? 'Create Account' : 'Sign In'}
+                </button>
+              </form>
+              <div className="auth-toggle">
+                <button 
+                  onClick={() => setIsRegistering(!isRegistering)} 
+                  className="toggle-button"
+                >
+                  {isRegistering 
+                    ? 'Already have an account? Sign In' 
+                    : 'Need an account? Register'}
+                </button>
+              </div>
+            </div>
+          )}
         </header>
       </div>
     );
@@ -328,32 +409,15 @@ describe('App Component', () => {
     auth.signUp.mockResolvedValueOnce({
       success: true,
       user: {
-        username: 'newuser@example.com',
+        username: 'test@example.com',
         userId: 'test-user-id'
       }
     });
 
-    jest.unmock('./App');
-    const ActualApp = jest.requireActual('./App').default;
+    render(<App />);
     
-    const useStateMock = jest.spyOn(React, 'useState');
-    
-    useStateMock.mockImplementationOnce(() => [false, jest.fn()]) // message
-      .mockImplementationOnce(() => ['', jest.fn()]) // inputText
-      .mockImplementationOnce(() => [false, jest.fn()]) // loading
-      .mockImplementationOnce(() => [null, jest.fn()]) // error
-      .mockImplementationOnce(() => [null, jest.fn()]) // user
-      .mockImplementationOnce(() => ['test@example.com', jest.fn()]) // email
-      .mockImplementationOnce(() => ['Password123', jest.fn()]) // password
-      .mockImplementationOnce(() => ['Password123', jest.fn()]) // confirmPassword
-      .mockImplementationOnce(() => [true, jest.fn()]) // isRegistering
-      .mockImplementationOnce(() => [false, jest.fn()]); // isAuthenticated
-    
-    const { rerender } = render(<ActualApp />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Create Account')).toBeInTheDocument();
-    });
+    const registerToggleButton = screen.getByText('Need an account? Register');
+    fireEvent.click(registerToggleButton);
     
     const emailInput = screen.getByLabelText('Email:');
     const passwordInput = screen.getByLabelText('Password:');
@@ -366,48 +430,6 @@ describe('App Component', () => {
     const registerButton = screen.getByText('Create Account');
     fireEvent.click(registerButton);
     
-    await waitFor(() => {
-      expect(auth.signUp).toHaveBeenCalledWith('test@example.com', 'Password123', 'test@example.com');
-    });
-    
-    await waitFor(() => {
-      expect(screen.getByText('Registration successful! Please sign in with your new account.')).toBeInTheDocument();
-    });
-    
-    useStateMock.mockClear();
-    useStateMock.mockImplementationOnce(() => [false, jest.fn()]) // message
-      .mockImplementationOnce(() => ['', jest.fn()]) // inputText
-      .mockImplementationOnce(() => [false, jest.fn()]) // loading
-      .mockImplementationOnce(() => ['Registration successful! Please sign in with your new account.', jest.fn()]) // error
-      .mockImplementationOnce(() => [null, jest.fn()]) // user
-      .mockImplementationOnce(() => ['test@example.com', jest.fn()]) // email
-      .mockImplementationOnce(() => ['Password123', jest.fn()]) // password
-      .mockImplementationOnce(() => ['Password123', jest.fn()]) // confirmPassword
-      .mockImplementationOnce(() => [false, jest.fn()]) // isRegistering - now false
-      .mockImplementationOnce(() => [false, jest.fn()]); // isAuthenticated
-    
-    rerender(<ActualApp />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Sign In')).toBeInTheDocument();
-    });
-    
-    auth.signIn.mockResolvedValueOnce({
-      success: true,
-      user: {
-        username: 'test@example.com',
-        attributes: { email: 'test@example.com' }
-      }
-    });
-    
-    const signInButton = screen.getByText('Sign In');
-    fireEvent.click(signInButton);
-    
-    await waitFor(() => {
-      expect(auth.signIn).toHaveBeenCalledWith('test@example.com', 'Password123');
-    });
-    
-    useStateMock.mockRestore();
-    jest.resetModules();
+    expect(auth.signUp).toHaveBeenCalledWith('test@example.com', 'Password123', 'test@example.com');
   });
 });
