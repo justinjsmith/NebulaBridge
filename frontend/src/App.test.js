@@ -168,7 +168,8 @@ describe('App Component', () => {
       .mockImplementationOnce(() => ['', jest.fn()]) // email
       .mockImplementationOnce(() => ['', jest.fn()]) // password
       .mockImplementationOnce(() => ['', jest.fn()]) // confirmPassword
-      .mockImplementationOnce(() => [null, jest.fn()]); // error
+      .mockImplementationOnce(() => [null, jest.fn()]) // error
+      .mockImplementationOnce(() => [null, jest.fn()]); // user - set to null to show login form
   });
 
   test('renders the application title', () => {
