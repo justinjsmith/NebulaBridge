@@ -51,7 +51,8 @@ jest.mock('./auth', () => ({
   }),
   getIdToken: jest.fn().mockResolvedValue('mock-jwt-token'),
   signIn: jest.fn(),
-  signOut: jest.fn()
+  signOut: jest.fn(),
+  signUp: jest.fn()
 }));
 
 global.fetch = jest.fn();
@@ -321,5 +322,92 @@ describe('App Component', () => {
         body: JSON.stringify({ text: 'CORS test message' })
       })
     );
+  });
+
+  test('registration functionality works correctly', async () => {
+    auth.signUp.mockResolvedValueOnce({
+      success: true,
+      user: {
+        username: 'newuser@example.com',
+        userId: 'test-user-id'
+      }
+    });
+
+    jest.unmock('./App');
+    const ActualApp = jest.requireActual('./App').default;
+    
+    const useStateMock = jest.spyOn(React, 'useState');
+    
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]) // message
+      .mockImplementationOnce(() => ['', jest.fn()]) // inputText
+      .mockImplementationOnce(() => [false, jest.fn()]) // loading
+      .mockImplementationOnce(() => [null, jest.fn()]) // error
+      .mockImplementationOnce(() => [null, jest.fn()]) // user
+      .mockImplementationOnce(() => ['test@example.com', jest.fn()]) // email
+      .mockImplementationOnce(() => ['Password123', jest.fn()]) // password
+      .mockImplementationOnce(() => ['Password123', jest.fn()]) // confirmPassword
+      .mockImplementationOnce(() => [true, jest.fn()]) // isRegistering
+      .mockImplementationOnce(() => [false, jest.fn()]); // isAuthenticated
+    
+    const { rerender } = render(<ActualApp />);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Create Account')).toBeInTheDocument();
+    });
+    
+    const emailInput = screen.getByLabelText('Email:');
+    const passwordInput = screen.getByLabelText('Password:');
+    const confirmPasswordInput = screen.getByLabelText('Confirm Password:');
+    
+    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+    fireEvent.change(passwordInput, { target: { value: 'Password123' } });
+    fireEvent.change(confirmPasswordInput, { target: { value: 'Password123' } });
+    
+    const registerButton = screen.getByText('Create Account');
+    fireEvent.click(registerButton);
+    
+    await waitFor(() => {
+      expect(auth.signUp).toHaveBeenCalledWith('test@example.com', 'Password123', 'test@example.com');
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByText('Registration successful! Please sign in with your new account.')).toBeInTheDocument();
+    });
+    
+    useStateMock.mockClear();
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]) // message
+      .mockImplementationOnce(() => ['', jest.fn()]) // inputText
+      .mockImplementationOnce(() => [false, jest.fn()]) // loading
+      .mockImplementationOnce(() => ['Registration successful! Please sign in with your new account.', jest.fn()]) // error
+      .mockImplementationOnce(() => [null, jest.fn()]) // user
+      .mockImplementationOnce(() => ['test@example.com', jest.fn()]) // email
+      .mockImplementationOnce(() => ['Password123', jest.fn()]) // password
+      .mockImplementationOnce(() => ['Password123', jest.fn()]) // confirmPassword
+      .mockImplementationOnce(() => [false, jest.fn()]) // isRegistering - now false
+      .mockImplementationOnce(() => [false, jest.fn()]); // isAuthenticated
+    
+    rerender(<ActualApp />);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Sign In')).toBeInTheDocument();
+    });
+    
+    auth.signIn.mockResolvedValueOnce({
+      success: true,
+      user: {
+        username: 'test@example.com',
+        attributes: { email: 'test@example.com' }
+      }
+    });
+    
+    const signInButton = screen.getByText('Sign In');
+    fireEvent.click(signInButton);
+    
+    await waitFor(() => {
+      expect(auth.signIn).toHaveBeenCalledWith('test@example.com', 'Password123');
+    });
+    
+    useStateMock.mockRestore();
+    jest.resetModules();
   });
 });
